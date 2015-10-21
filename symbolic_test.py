@@ -43,6 +43,7 @@ for gen_cord in gen_cords:
 LHS = L1 - L2
 
 # Step 5: Substituting the non-evaluated second-order derivative with expressions that can be solved for in the next step
+# and removing the time dependance in the generalized coordinates/velocities
 for i in range (len(gen_cords)):
 	for gen_acc in gen_accs:
 		LHS[i] = LHS[i].subs(sym.diff(gen_vels[gen_acc]),gen_accs[gen_acc])
