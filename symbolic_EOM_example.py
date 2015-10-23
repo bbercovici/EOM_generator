@@ -11,6 +11,8 @@ qj = ['x','theta']
 Qj = ['u','0']
 
 # Kinetic Energy
+# (because it is a rather long expressions, it can be split in two strings 
+# that are later stored in the same list)
 T1 = "0.5 * m1 * x_dot(t) ** 2 "
 T2 = "0.5 * m2 *( x_dot(t) ** 2 + (l*theta_dot(t))**2 - 2* x_dot(t) * l * theta_dot(t)* cos(theta(t)))"
 
