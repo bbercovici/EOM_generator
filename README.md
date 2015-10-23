@@ -7,7 +7,7 @@ An example of how it works is provided in symbolic_EOM_example.py,
 where the EOMs of an inverted pendulum are computed and displayed. This can be done by 
 calling the following in the command line:
 
-'''
+```
 run symbolic_EOM_example.py
-'''
+```
 
