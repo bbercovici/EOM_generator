@@ -14,7 +14,34 @@ class DynamicSystem:
 			self.gen_forces)
 
 def EOM_s(g_cords, kin_e , pot_e, gen_forces):
+	'''
+	Returns a dictionnary storing the symbolic expressions of the 
+	second-order time derivatives of a prescribed set of generalized
+	coordinates. In other words, this function returns the symbolic 
+	equations of motions for a dynamical system. This dynamical system
+	is fully defined by a set of MINIMUM generalized coordinates, its 
+	kinetic energy and potential energy, the latter being formulated in terms
+	of the prescribed generalized coordinates. Lagrange's equations are used to solve for
+	the dynamical unknowns
+	Parameters:
+	-----------
+	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
+	kin_e: (string) kinetic energy expressed in terms of 
+		the generalized coordinates, their time derivatives and 
+		problem constants. Note that the time dependence must be 
+		explicit (Ex: kin_e == '0.5 * m * x_dot(t)**2')
+	pot_e: (string) potential energy expressed in terms of 
+		the generalized coordinates and 
+		problem constants. Note that the time dependence must also be 
+		explicit (Ex: pot_e == 'm * g * x(t)')
+	gen_forces : (list of strings) generalized forces entered in the same
+		order as the generalized coordinates
+	Outputs:
+	--------
+	EOM: (dictionnary) symbolic equations of motion expressed in terms of the generalized
+		coordinates, their time derivatives and problem constants
 
+	'''
 
 	# Some key symbolic variables are defined here
 	t = sym.symbols('t', real = True)
@@ -78,5 +105,5 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces):
 
 	solver_args = [sym.simplify(sym.expand(LHS-RHS))] + list(gen_accs)
 	
-	
-	return sym.solve(*solver_args)
+	EOM = sym.solve(*solver_args)
+	return EOM
