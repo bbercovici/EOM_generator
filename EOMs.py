@@ -4,21 +4,22 @@ import numpy as np
 
 class DynamicSystem:
 	"""Defines the DynamicSystem Class"""
-	def __init__(self, g_cords, kin_e , pot_e, gen_forces):
+	def __init__(self, g_cords, kin_e , pot_e, gen_forces,const_symbols):
 		self.g_cords = g_cords
 		self.kin_e = '+'.join(kin_e)
 		self.pot_e = '+'.join(pot_e)
 		self.gen_forces = gen_forces
+		self.const_symbols = const_symbols
 	def derive_EOM(self):
 		self.EOM = EOM_s(self.g_cords,self.kin_e,self.pot_e,
-			self.gen_forces)
+			self.gen_forces,self.const_symbols)
+	def lin_dynamics(self):
+		self.F = lin_dynamics(self.g_cords,self.EOM,self.const_symbols)
 
-def EOM_s(g_cords, kin_e , pot_e, gen_forces):
+def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols):
 	'''
-	Returns a dictionnary storing the symbolic expressions of the 
-	second-order time derivatives of a prescribed set of generalized
-	coordinates. In other words, this function returns the symbolic 
-	equations of motions for a dynamical system. This dynamical system
+	Returns a symbolic vector representing the EOM of a dynamical system.
+	This dynamical system
 	is fully defined by a set of MINIMUM generalized coordinates, its 
 	kinetic energy and potential energy, the latter being formulated in terms
 	of the prescribed generalized coordinates. Lagrange's equations are used to solve for
@@ -36,6 +37,7 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces):
 		explicit (Ex: pot_e == 'm * g * x(t)')
 	gen_forces : (list of strings) generalized forces entered in the same
 		order as the generalized coordinates
+	const_symbols : list of constant symbols
 	Outputs:
 	--------
 	EOM: (dictionnary) symbolic equations of motion expressed in terms of the generalized
@@ -46,12 +48,18 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces):
 	# Some key symbolic variables are defined here
 	t = sym.symbols('t', real = True)
 	gen_cords = sym.Matrix(np.zeros(len(g_cords)))
+	gen_cords_implementation = sym.Matrix(np.zeros(len(g_cords)))
+
 	gen_vels = sym.Matrix(np.zeros(len(g_cords)))
+	gen_vels_implementation = sym.Matrix(np.zeros(len(g_cords)))
+
 	gen_accs = sym.Matrix(np.zeros(len(g_cords)))
 
 	for i in range(len(gen_cords)):
 		gen_cords[i] = sym.symbols(g_cords[i], real = True)(t)
+		gen_cords_implementation[i] = sym.symbols(g_cords[i], real = True)
 		gen_vels[i] = sym.symbols(g_cords[i]+'_dot', real = True)(t)
+		gen_vels_implementation[i] = sym.symbols(g_cords[i]+'_dot', real = True)
 		gen_accs[i] = sym.symbols(g_cords[i]+'_ddot', real = True)
 	
 
@@ -106,4 +114,37 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces):
 	solver_args = [sym.simplify(sym.expand(LHS-RHS))] + list(gen_accs)
 	
 	EOM = sym.solve(*solver_args)
-	return EOM
+
+	# Step 7: the computed EOMs are reformatted so as to appear in state
+	# space form (i.e in a "ready to implement form")
+	EOM_implementation = sym.Matrix(np.zeros(2*len(gen_cords)))
+	
+	for i in range(len(gen_cords)):
+		EOM_implementation[i] = gen_vels_implementation[i]
+		EOM_implementation[i+2] = EOM[gen_accs[i]]
+	for i in range(len(gen_cords)):
+		EOM_implementation = EOM_implementation.subs(gen_cords[i],
+			gen_cords_implementation[i])
+		EOM_implementation = EOM_implementation.subs(gen_vels[i],
+			gen_vels_implementation[i])
+
+	return EOM_implementation
+
+def lin_dynamics(g_cords,EOM,const_symbols):
+	'''
+	Return the state-space matrix F and the state-control matrix G in 
+	Xdot = Fx + Gu
+	Parameters:
+	-----------
+	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
+	EOM : (symbolic matrix) equations of motion in a ready to implement form
+	'''
+	state = sym.Matrix(np.zeros(2*len(g_cords)))
+
+	for i in range(len(g_cords)):
+		state[i] = sym.symbols(g_cords[i], real = True)
+		state[i+2] = sym.symbols(g_cords[i]+'_dot', real = True)
+	F = EOM.jacobian(state)	
+	return F.subs([(state[1],0)])	
+
+
