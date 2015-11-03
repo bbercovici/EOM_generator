@@ -18,6 +18,9 @@ class DynamicSystem:
 	def lin_dynamics(self,equilibrium):
 		[self.F,self.G] = lin_dynamics(self.g_cords,
 			self.EOM,self.const_symbols,self.controls,equilibrium)
+	def X_dot(self):
+		self.Xdot = X_dot(self.g_cords, self.EOM,self.controls,
+			self.const_symbols)
 
 def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols,controls):
 	'''
@@ -149,13 +152,17 @@ def lin_dynamics(g_cords,EOM,const_symbols,controls,equilibrium):
 	const_symbols : (list of strings) constant symbols
 	controls : (list of strings) control variables
 	equilibrium : (list of strings) equilibrium point
+	Returns:
+	-----------
+	F : (symbolic matrix) state-space matrix evaluated at the equilibrium
+	G : (symbolic matrix) control state matrix evaluated at the equilibrium
 	'''
 	state = sym.Matrix(np.zeros(2*len(g_cords)))
 	control = sym.Matrix(np.zeros(len(controls)))
 
 	for i in range(len(g_cords)):
 		state[i] = sym.symbols(g_cords[i], real = True)
-		state[i+len(g_cords)] = sym.symbols(g_cords[i]+'_dot', real = True)
+		state[i+len(g_cords)] = sym.symbols(g_cords[i] + '_dot', real = True)
 
 	for i in range(len(controls)):
 		control[i] = sym.symbols(controls[i], real = True)
@@ -163,13 +170,34 @@ def lin_dynamics(g_cords,EOM,const_symbols,controls,equilibrium):
 	F = EOM.jacobian(state)	
 	G = EOM.jacobian(control)
 	
-	eq = sym.sympify(equilibrium)
-	for i in range(len(g_cords)):
-		F = F.subs(state[i+len(g_cords)],0)
-		F = F.subs(state[i],eq[i])
-		G = G.subs(state[i+len(g_cords)],0)
-		G = G.subs(state[i],eq[i])
+	# eq = sym.sympify(equilibrium)
+	# for i in range(len(g_cords)):
+	# 	F = F.subs(state[i+len(g_cords)],0)
+	# 	F = F.subs(state[i],eq[i])
+	# 	G = G.subs(state[i+len(g_cords)],0)
+	# 	G = G.subs(state[i],eq[i])
 
 	return [F,G]
 
+def X_dot(g_cords,EOM,controls,const_symbols):
+	'''
+	Returns a function handle to the non-linear state rates
+	Parameters:
+	-----------
+	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
+	EOM : (symbolic matrix) equations of motion in a ready to implement form
+	const_symbols : (list of strings) constant symbols
+	controls : (list of strings) control variables
+	'''
+	state_control = sym.Matrix(np.zeros(2*len(g_cords)+len(controls)))
+
+	for i in range(len(g_cords)):
+		state_control[i] = sym.symbols(g_cords[i], real = True)
+		state_control[i+len(g_cords)] = sym.symbols(g_cords[i]+'_dot', real = True)
+	for i in range(len(controls)):
+		state_control[2*len(g_cords)+i] = sym.symbols(controls[i], real = True)
+	print state_control
+	print controls
+	state_rates = sym.lambdify(state_control,EOM)
+	return state_rates
 

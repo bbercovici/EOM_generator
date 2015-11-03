@@ -4,6 +4,13 @@ from IPython.display import display
 from EOMs import EOM_s
 from EOMs import DynamicSystem
 
+# Numeric values
+m1 = 1
+m2 = 0.1
+l = 1
+k = 0.5
+g = 9.81
+
 # Minimum set of generalized coordinates
 qj = ['x','theta']
 
@@ -31,6 +38,5 @@ U = "m2 * g  * l * cos(theta(t)) + 0.5 * k * (x(t)-l) * * 2"
 cart_pendulum = DynamicSystem(qj,[T1,T2],[U],Qj,const_symbols,controls)
 cart_pendulum.derive_EOM()
 cart_pendulum.lin_dynamics(equilibrium)
-display(cart_pendulum.F)
-display(cart_pendulum.G)
+
 
