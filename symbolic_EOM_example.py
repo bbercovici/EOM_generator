@@ -10,8 +10,14 @@ qj = ['x','theta']
 # Generalized non-conservative forces
 Qj = ['u','0']
 
+# Control variables
+controls = ['u']
+
 # Constant symbols
 const_symbols = ['m1','m2','k','l']
+
+# Equilibrium point about which the dynamics must be linearized
+equilibrium= ['l','0']
 
 # Kinetic Energy
 # (because it is a rather long expression, it can be split in two strings 
@@ -22,7 +28,9 @@ T2 = "0.5 * m2 * ( x_dot(t) ** 2 + (l*theta_dot(t))**2 - 2* x_dot(t) * l * theta
 # Potential energy
 U = "m2 * g  * l * cos(theta(t)) + 0.5 * k * (x(t)-l) * * 2"
 
-cart_pendulum = DynamicSystem(qj,[T1,T2],[U],Qj,const_symbols)
+cart_pendulum = DynamicSystem(qj,[T1,T2],[U],Qj,const_symbols,controls)
 cart_pendulum.derive_EOM()
-cart_pendulum.lin_dynamics()
+cart_pendulum.lin_dynamics(equilibrium)
 display(cart_pendulum.F)
+display(cart_pendulum.G)
+

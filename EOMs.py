@@ -4,19 +4,22 @@ import numpy as np
 
 class DynamicSystem:
 	"""Defines the DynamicSystem Class"""
-	def __init__(self, g_cords, kin_e , pot_e, gen_forces,const_symbols):
+	def __init__(self, g_cords, kin_e , pot_e, gen_forces,
+		const_symbols,controls):
 		self.g_cords = g_cords
 		self.kin_e = '+'.join(kin_e)
 		self.pot_e = '+'.join(pot_e)
 		self.gen_forces = gen_forces
 		self.const_symbols = const_symbols
+		self.controls = controls
 	def derive_EOM(self):
 		self.EOM = EOM_s(self.g_cords,self.kin_e,self.pot_e,
-			self.gen_forces,self.const_symbols)
-	def lin_dynamics(self):
-		self.F = lin_dynamics(self.g_cords,self.EOM,self.const_symbols)
+			self.gen_forces,self.const_symbols,self.controls)
+	def lin_dynamics(self,equilibrium):
+		[self.F,self.G] = lin_dynamics(self.g_cords,
+			self.EOM,self.const_symbols,self.controls,equilibrium)
 
-def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols):
+def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols,controls):
 	'''
 	Returns a symbolic vector representing the EOM of a dynamical system.
 	This dynamical system
@@ -37,7 +40,9 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols):
 		explicit (Ex: pot_e == 'm * g * x(t)')
 	gen_forces : (list of strings) generalized forces entered in the same
 		order as the generalized coordinates
-	const_symbols : list of constant symbols
+	const_symbols : (list of strings) constant symbols
+	controls : (list of strings) control variables
+
 	Outputs:
 	--------
 	EOM: (dictionnary) symbolic equations of motion expressed in terms of the generalized
@@ -69,8 +74,11 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols):
 		ns[str(sym_cord)] = sym.Symbol(str(sym_cord), real=True)
 	for sym_vel in gen_vels:
 		ns[str(sym_vel)] = sym.Symbol(str(sym_vel), real=True)
+	for control in controls:
+		ns[str(control)] = sym.Symbol(str(control), real=True)
 	
 	ns['t'] = t
+
 
 	# The kinetic energy and the potential energy are "sympified"
 	# using the symbols that have already been defined
@@ -130,7 +138,7 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols):
 
 	return EOM_implementation
 
-def lin_dynamics(g_cords,EOM,const_symbols):
+def lin_dynamics(g_cords,EOM,const_symbols,controls,equilibrium):
 	'''
 	Return the state-space matrix F and the state-control matrix G in 
 	Xdot = Fx + Gu
@@ -138,13 +146,30 @@ def lin_dynamics(g_cords,EOM,const_symbols):
 	-----------
 	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
 	EOM : (symbolic matrix) equations of motion in a ready to implement form
+	const_symbols : (list of strings) constant symbols
+	controls : (list of strings) control variables
+	equilibrium : (list of strings) equilibrium point
 	'''
 	state = sym.Matrix(np.zeros(2*len(g_cords)))
+	control = sym.Matrix(np.zeros(len(controls)))
 
 	for i in range(len(g_cords)):
 		state[i] = sym.symbols(g_cords[i], real = True)
-		state[i+2] = sym.symbols(g_cords[i]+'_dot', real = True)
+		state[i+len(g_cords)] = sym.symbols(g_cords[i]+'_dot', real = True)
+
+	for i in range(len(controls)):
+		control[i] = sym.symbols(controls[i], real = True)
+
 	F = EOM.jacobian(state)	
-	return F.subs([(state[1],0)])	
+	G = EOM.jacobian(control)
+	
+	eq = sym.sympify(equilibrium)
+	for i in range(len(g_cords)):
+		F = F.subs(state[i+len(g_cords)],0)
+		F = F.subs(state[i],eq[i])
+		G = G.subs(state[i+len(g_cords)],0)
+		G = G.subs(state[i],eq[i])
+
+	return [F,G]
 
 
