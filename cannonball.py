@@ -3,7 +3,6 @@ import numpy as np
 from IPython.display import display
 from EOMs import EOM_s
 from EOMs import DynamicSystem
-import matplotlib.pyplot as plt
 
 # Numeric values
 m = 1
@@ -45,13 +44,5 @@ cannonball = DynamicSystem(qj,[T],[U],Qj,consts,controls)
 cannonball.derive_EOM()
 cannonball.lin_dynamics(equilibrium)
 cannonball.true_dyn(t0,tf,X0,dt)
-
-plt.plot(cannonball.X[0,:], cannonball.X[1,:],label="Traj")
-
-plt.title('traj')
-plt.ylabel('y')
-plt.xlabel('x')
-plt.legend(loc = 'best')
-plt.show()
-
+cannonball.plot_true_states()
 

@@ -1,5 +1,6 @@
 import sympy as sym
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class DynamicSystem:
@@ -24,6 +25,8 @@ class DynamicSystem:
 	def true_dyn(self,t0,tf,X0,dt):
 		self.X_dot()
 		[self.T,self.X] = true_dyn(self.Xdot,t0,tf,X0,dt)
+	def plot_true_states(self):
+		plot_true_states(self.T,self.X,self.g_cords);
 
 def EOM_s(g_cords, kin_e , pot_e, gen_forces,consts,controls):
 	'''
@@ -202,6 +205,7 @@ def X_dot(g_cords,EOM,controls,consts):
 		state_control_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
 	for i in range(len(controls)):
 		state_control_time[2*len(g_cords)+ i + 1] = sym.symbols(controls[i], real = True)
+
 	state_rates = sym.lambdify(state_control_time,EOM.subs(consts), modules='numpy')
 	return state_rates
 
@@ -234,5 +238,33 @@ def true_dyn(dXdt,t0,tf,X0,dt):
 		X[:, i + 1 ] = X[:, i ] + dt/6. * (k1 + 2 * k2 + 2 * k3 + k4)
 
 	return [T,X]
+
+def plot_true_states(T,X,g_cords):
+	"""
+	Plots the true states' history
+	Parameters:
+	-----------
+	T: (k-by-1 np.array) time history
+	X : (n-by-k np.array) state time histories
+	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
+	"""
+	for i in range(len(g_cords)):
+		plt.subplot(2*len(g_cords), 1, i*len(g_cords)+1)
+		plt.plot(T, X[i,:])
+		plt.ticklabel_format(useOffset=False)
+		plt.title('$' + g_cords[i] + '$')
+		plt.ylabel('$' + g_cords[i] + '$')
+	
+		plt.subplot(2*len(g_cords), 1, i*len(g_cords)+2)
+		plt.plot(T, X[i+len(g_cords),:])
+		plt.ticklabel_format(useOffset=False)
+		plt.title('$\dot{'+ g_cords[i] + "}$")
+		plt.ylabel('$\dot{'+ g_cords[i] + "}$")
+	plt.xlabel('Time (s)')
+	fig = plt.gcf()
+	fig.set_size_inches(18.5, 10.5,forward=True)
+	plt.savefig('true_states.pdf', bbox_inches='tight')
+
+	plt.show()
 
 

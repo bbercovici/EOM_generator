@@ -25,10 +25,10 @@ X0 = np.array([x0,theta0,xdot0,thetadot0])
 qj = ['x','theta']
 
 # Generalized non-conservative forces
-Qj = ['u','0']
+Qj = ['0','0']
 
 # Control variables
-controls = ['u']
+controls = []
 
 # Equilibrium point about which the dynamics must be linearized
 equilibrium = ['l','0']
@@ -45,7 +45,7 @@ U = "m2 * g  * l * cos(theta(t)) + 0.5 * k * (x(t)-l) * * 2"
  
 # Time interval
 t0 = 0
-tf = 10
+tf = 2
 
 # Timestep
 dt = 0.01
@@ -53,5 +53,7 @@ dt = 0.01
 cart_pendulum = DynamicSystem(qj,[T1,T2],[U],Qj,consts,controls)
 cart_pendulum.derive_EOM()
 cart_pendulum.lin_dynamics(equilibrium)
+cart_pendulum.true_dyn(t0,tf,X0,dt)
+cart_pendulum.plot_true_states()
 
 
