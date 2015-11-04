@@ -5,24 +5,27 @@ import numpy as np
 class DynamicSystem:
 	"""Defines the DynamicSystem Class"""
 	def __init__(self, g_cords, kin_e , pot_e, gen_forces,
-		const_symbols,controls):
+		consts,controls):
 		self.g_cords = g_cords
 		self.kin_e = '+'.join(kin_e)
 		self.pot_e = '+'.join(pot_e)
 		self.gen_forces = gen_forces
-		self.const_symbols = const_symbols
+		self.consts = consts
 		self.controls = controls
 	def derive_EOM(self):
 		self.EOM = EOM_s(self.g_cords,self.kin_e,self.pot_e,
-			self.gen_forces,self.const_symbols,self.controls)
+			self.gen_forces,self.consts,self.controls)
 	def lin_dynamics(self,equilibrium):
 		[self.F,self.G] = lin_dynamics(self.g_cords,
-			self.EOM,self.const_symbols,self.controls,equilibrium)
+			self.EOM,self.consts,self.controls,equilibrium)
 	def X_dot(self):
 		self.Xdot = X_dot(self.g_cords, self.EOM,self.controls,
-			self.const_symbols)
+			self.consts)
+	def true_dyn(self,t0,tf,X0,dt):
+		self.X_dot()
+		[self.T,self.X] = true_dyn(self.Xdot,t0,tf,X0,dt)
 
-def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols,controls):
+def EOM_s(g_cords, kin_e , pot_e, gen_forces,consts,controls):
 	'''
 	Returns a symbolic vector representing the EOM of a dynamical system.
 	This dynamical system
@@ -43,7 +46,7 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols,controls):
 		explicit (Ex: pot_e == 'm * g * x(t)')
 	gen_forces : (list of strings) generalized forces entered in the same
 		order as the generalized coordinates
-	const_symbols : (list of strings) constant symbols
+	consts : (dictionnary) constant values
 	controls : (list of strings) control variables
 
 	Outputs:
@@ -138,10 +141,9 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,const_symbols,controls):
 			gen_cords_implementation[i])
 		EOM_implementation = EOM_implementation.subs(gen_vels[i],
 			gen_vels_implementation[i])
-
 	return EOM_implementation
 
-def lin_dynamics(g_cords,EOM,const_symbols,controls,equilibrium):
+def lin_dynamics(g_cords,EOM,consts,controls,equilibrium):
 	'''
 	Return the state-space matrix F and the state-control matrix G in 
 	Xdot = Fx + Gu
@@ -149,7 +151,7 @@ def lin_dynamics(g_cords,EOM,const_symbols,controls,equilibrium):
 	-----------
 	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
 	EOM : (symbolic matrix) equations of motion in a ready to implement form
-	const_symbols : (list of strings) constant symbols
+	consts : (dictionnary) constant values
 	controls : (list of strings) control variables
 	equilibrium : (list of strings) equilibrium point
 	Returns:
@@ -179,25 +181,58 @@ def lin_dynamics(g_cords,EOM,const_symbols,controls,equilibrium):
 
 	return [F,G]
 
-def X_dot(g_cords,EOM,controls,const_symbols):
-	'''
+def X_dot(g_cords,EOM,controls,consts):
+	"""
 	Returns a function handle to the non-linear state rates
 	Parameters:
 	-----------
 	g_cords: (list of strings) generalized coordinates (Ex: g_cords == ['x','theta'])
 	EOM : (symbolic matrix) equations of motion in a ready to implement form
-	const_symbols : (list of strings) constant symbols
+	consts : (dictionnary) constant values
 	controls : (list of strings) control variables
-	'''
-	state_control = sym.Matrix(np.zeros(2*len(g_cords)+len(controls)))
-
+	Returns:
+	---------
+	state_rates : (function handle) function handle to the state rates
+	"""
+	state_control_time = sym.Matrix(np.zeros(2*len(g_cords) + len(controls)+1))
+	t = sym.symbols('t', real = True)
+	state_control_time[0] = t
 	for i in range(len(g_cords)):
-		state_control[i] = sym.symbols(g_cords[i], real = True)
-		state_control[i+len(g_cords)] = sym.symbols(g_cords[i]+'_dot', real = True)
+		state_control_time[i + 1] = sym.symbols(g_cords[i], real = True)
+		state_control_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
 	for i in range(len(controls)):
-		state_control[2*len(g_cords)+i] = sym.symbols(controls[i], real = True)
-	print state_control
-	print controls
-	state_rates = sym.lambdify(state_control,EOM)
+		state_control_time[2*len(g_cords)+ i + 1] = sym.symbols(controls[i], real = True)
+	state_rates = sym.lambdify(state_control_time,EOM.subs(consts), modules='numpy')
 	return state_rates
+
+def true_dyn(dXdt,t0,tf,X0,dt):
+	"""
+	Propagates the dynamics of the true state forward
+	using a 4-th order Runge Kutta
+	Parameters:
+	-----------
+	dXdt: (function handle) time rates of the true state
+	t0 : initial time
+	tf : final time
+	X0 : (n-by-1) initial state
+	dt : time step
+	Returns:
+	-----------
+	T : (k-by-1 np.array) time histories
+	X : (n-by-k np.array) state histories
+	"""
+
+	T = np.linspace(t0,tf,round((tf-t0)/dt))
+	X = np.zeros([len(X0),len(T)])
+	X[:,0] = X0
+	# Non-linear dynamics are propagated forward in time
+	for i in range(len(T)-1):
+		k1 = np.squeeze(dXdt(*list(np.append(T[i],X[:,i]))))
+		k2 = np.squeeze(dXdt(*list(np.append(T[i] + dt/2 , X[:,i] + dt/2 * k1))))
+		k3 = np.squeeze(dXdt(*list(np.append(T[i] + dt/2 , X[:,i]+ dt/2 * k2))))
+		k4 = np.squeeze(dXdt(*list(np.append(T[i] + dt , X[:,i] + dt * k3 ))))
+		X[:, i + 1 ] = X[:, i ] + dt/6. * (k1 + 2 * k2 + 2 * k3 + k4)
+
+	return [T,X]
+
 
