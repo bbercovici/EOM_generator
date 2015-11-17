@@ -1,6 +1,7 @@
 import sympy as sym
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import odeint
 
 
 class DynamicSystem:
@@ -14,7 +15,7 @@ class DynamicSystem:
 		self.consts = consts
 		self.controls = controls
 	def derive_EOM(self):
-		self.EOM = EOM_s(self.g_cords,self.kin_e,self.pot_e,
+		[self.EOM,self.ns] = EOM_s(self.g_cords,self.kin_e,self.pot_e,
 			self.gen_forces,self.consts,self.controls)
 	def lin_dynamics(self,equilibrium):
 		[self.F,self.G] = lin_dynamics(self.g_cords,
@@ -27,6 +28,38 @@ class DynamicSystem:
 		[self.T,self.X] = true_dyn(self.Xdot,t0,tf,X0,dt)
 	def plot_true_states(self):
 		plot_true_states(self.T,self.X,self.g_cords);
+
+
+class ExtendedKalman:
+	"""Defines the ExtendedKalman Class"""
+	def __init__(self, X0_bar,P0,R,dyn_sys,state_obs):
+		self.X0_bar = X0_bar
+		self.P0 = P0
+		self.R = R
+		self.dyn_sys = dyn_sys
+		self.A = dyn_sys.F
+		self.H = np.eye(len(X0_bar))
+		self.state_obs = state_obs
+		self.T_obs = dyn_sys.T
+
+	def state_obs_mat(self):
+		self.H = state_obs_mat(self.dyn_sys.ns,
+			self.dyn_sys.g_cords,self.state_obs)
+
+	def compute_estimate(self):
+		self.estimate = compute_estimate(self.T_obs,self.dyn_sys,self.dyn_sys.g_cords
+			self.X0_bar,self.P0,self.R)
+
+	def time_update(self):
+		[self.x_bar,self.P_bar] = time_update(self.x_hat_old,
+			self.P_old)
+	def measurement_update(self):
+		[self.x_hat,self.P] = measurement_update(self.x_bar,self.P_bar)
+		self.P_old = self.P
+		self.x_hat_old = self.x_hat
+
+
+
 
 def EOM_s(g_cords, kin_e , pot_e, gen_forces,consts,controls):
 	'''
@@ -56,6 +89,7 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,consts,controls):
 	--------
 	EOM: (dictionnary) symbolic equations of motion expressed in terms of the generalized
 		coordinates, their time derivatives and problem constants
+	ns : (dictionnary) symbolic variables already defined
 
 	'''
 
@@ -144,11 +178,11 @@ def EOM_s(g_cords, kin_e , pot_e, gen_forces,consts,controls):
 			gen_cords_implementation[i])
 		EOM_implementation = EOM_implementation.subs(gen_vels[i],
 			gen_vels_implementation[i])
-	return EOM_implementation
+	return [EOM_implementation,ns]
 
 def lin_dynamics(g_cords,EOM,consts,controls,equilibrium):
 	'''
-	Return the state-space matrix F and the state-control matrix G in 
+	Return the function handles to the state-space matrix F and the state-control matrix G in 
 	Xdot = Fx + Gu
 	Parameters:
 	-----------
@@ -159,8 +193,8 @@ def lin_dynamics(g_cords,EOM,consts,controls,equilibrium):
 	equilibrium : (list of strings) equilibrium point
 	Returns:
 	-----------
-	F : (symbolic matrix) state-space matrix evaluated at the equilibrium
-	G : (symbolic matrix) control state matrix evaluated at the equilibrium
+	F : (function handle) state-space matrix 
+	G : (function handle) control state matrix 
 	'''
 	state = sym.Matrix(np.zeros(2*len(g_cords)))
 	control = sym.Matrix(np.zeros(len(controls)))
@@ -172,15 +206,23 @@ def lin_dynamics(g_cords,EOM,consts,controls,equilibrium):
 	for i in range(len(controls)):
 		control[i] = sym.symbols(controls[i], real = True)
 
-	F = EOM.jacobian(state)	
-	G = EOM.jacobian(control)
+	# Symbolic Jacobian matrices
+	Fs = EOM.jacobian(state)	
+	Gs = EOM.jacobian(control)
 	
-	# eq = sym.sympify(equilibrium)
-	# for i in range(len(g_cords)):
-	# 	F = F.subs(state[i+len(g_cords)],0)
-	# 	F = F.subs(state[i],eq[i])
-	# 	G = G.subs(state[i+len(g_cords)],0)
-	# 	G = G.subs(state[i],eq[i])
+	state_control_time = sym.Matrix(np.zeros(2*len(g_cords) + len(controls)+1))
+	t = sym.symbols('t', real = True)
+	state_control_time[0] = t
+	for i in range(len(g_cords)):
+		state_control_time[i + 1] = sym.symbols(g_cords[i], real = True)
+		state_control_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
+	for i in range(len(controls)):
+		state_control_time[2*len(g_cords)+ i + 1] = sym.symbols(controls[i], real = True)
+
+
+	F = sym.lambdify(state_control_time,Fs.subs(consts), modules='numpy')
+	G = sym.lambdify(state_control_time,Gs.subs(consts), modules='numpy')
+
 
 	return [F,G]
 
@@ -266,5 +308,51 @@ def plot_true_states(T,X,g_cords):
 	plt.savefig('true_states.pdf', bbox_inches='tight')
 
 	plt.show()
+
+def state_obs_mat(ns,g_cords,state_obs):
+	state = sym.Matrix(np.zeros(2*len(g_cords)))
+
+	for i in range(len(g_cords)):
+		state[i] = sym.symbols(g_cords[i], real = True)
+		state[i+len(g_cords)] = sym.symbols(g_cords[i] + '_dot', real = True)
+
+	state_obs_s = sym.sympify(state_obs, locals = ns)
+
+	Htilde_s = state_obs_s.jacobian(state)
+
+	t = sym.symbols('t', real = True)
+	state_time[0] = t
+	for i in range(len(g_cords)):
+		state_time[i + 1] = sym.symbols(g_cords[i], real = True)
+		state_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
+	Htilde = sym.lambdify(state_time,Htilde_s, modules='numpy')
+
+	return Htilde
+
+def measurement_update(t,x_bar,P_bar,Htilde):
+	[]
+	H = Htilde(t,x,y,z,xdot,ydot,zdot,xs,ys,zs)
+    K1 = np.dot(P_bar,H.T)
+    K2 = np.linalg.inv(np.dot(H,np.dot(P_bar,H.T)) + Rcov)
+    K = np.dot(K1,K2)
+
+def time_update(x_hat_old,P_old,t_old,t_next,dXdt):
+	xdot_Pdot = lambda x: np.array(dXdt(*list(np.append(T[i],X[:,i]))))
+	# x_bar = rk45(sys_dyn.F,x_hat_old, t0,tf, rtol=3e-14,atol=1e-16)
+	# P_bar = rk45(sys_dyn.F,sys_dyn.G,P_old, t0,tf)
+	[T,Phi] = 
+	Phi = Phi[:,:,-1]
+	x_bar = np.dot(Phi,x_hat_old)
+	P_bar = np.dot(Phi,np.dot(P_old,Phi.T))
+	return [x_bar,P_bar]
+
+
+def compute_estimate(T_obs,dyn_sys,X0_bar,P0,R):
+	estimate = np.zeros([len(X0_bar),len(T)])
+	x_hat_old = X0_bar
+	P_old = P0
+	for i in range(len(dyn_sys.T)):
+		[x_bar,P_bar] = time_update(x_hat_old,P_old,dyn_sys.T[i],
+			dyn_sys.T[i+1],dXdt)
 
 
