@@ -30,6 +30,7 @@ Qj = ['0','0']
 # Control variables
 controls = []
 
+# TO BE MODIFIED IN AN UPCOMMING RELEASE
 # Equilibrium point about which the dynamics must be linearized
 equilibrium = ['l','0']
 
