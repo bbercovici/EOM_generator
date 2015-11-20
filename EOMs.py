@@ -30,35 +30,6 @@ class DynamicSystem:
         plot_true_states(self.T,self.X,self.g_cords);
 
 
-class ExtendedKalman:
-    """Defines the ExtendedKalman Class"""
-    def __init__(self, X0_bar,P0,R,dyn_sys,state_obs):
-        self.X0_bar = X0_bar
-        self.P0 = P0
-        self.R = R
-        self.dyn_sys = dyn_sys
-        self.A = dyn_sys.F
-        self.H = np.eye(len(X0_bar))
-        self.state_obs = state_obs
-        self.T_obs = dyn_sys.T
-
-    def state_obs_mat(self):
-        self.H = state_obs_mat(self.dyn_sys.ns,
-            self.dyn_sys.g_cords,self.state_obs)
-
-    def compute_estimate(self):
-        self.estimate = compute_estimate(self.T_obs,self.dyn_sys,self.dyn_sys.g_cords,
-            self.X0_bar,self.P0,self.R)
-
-    def time_update(self):
-        [self.x_bar,self.P_bar] = time_update(self.x_hat_old,
-            self.P_old)
-    def measurement_update(self):
-        [self.x_hat,self.P] = measurement_update(self.x_bar,self.P_bar)
-        self.P_old = self.P
-        self.x_hat_old = self.x_hat
-
-
 
 
 def EOM_s(g_cords, kin_e , pot_e, gen_forces,consts,controls):
@@ -247,7 +218,6 @@ def X_dot(g_cords,EOM,controls,consts):
         state_control_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
     for i in range(len(controls)):
         state_control_time[2*len(g_cords)+ i + 1] = sym.symbols(controls[i], real = True)
-
     state_rates = sym.lambdify(state_control_time,EOM.subs(consts), modules='numpy')
     return state_rates
 
@@ -307,8 +277,6 @@ def plot_true_states(T,X,g_cords):
     fig.set_size_inches(18.5, 10.5,forward=True)
     plt.savefig('true_states.pdf', bbox_inches='tight')
 
-    plt.show()
-
 def state_obs_mat(ns,g_cords,state_obs):
     state = sym.Matrix(np.zeros(2*len(g_cords)))
 
@@ -328,30 +296,4 @@ def state_obs_mat(ns,g_cords,state_obs):
     Htilde = sym.lambdify(state_time,Htilde_s, modules='numpy')
 
     return Htilde
-
-def measurement_update(t,x_bar,P_bar,Htilde):
-    H = Htilde(t,x,y,z,xdot,ydot,zdot,xs,ys,zs)
-    K1 = np.dot(P_bar,H.T)
-    K2 = np.linalg.inv(np.dot(H,np.dot(P_bar,H.T)) + Rcov)
-    K = np.dot(K1,K2)
-
-def time_update(x_hat_old,P_old,t_old,t_next,dXdt):
-    xdot_Pdot = lambda x: np.array(dXdt(*list(np.append(T[i],X[:,i]))))
-    # x_bar = rk45(sys_dyn.F,x_hat_old, t0,tf, rtol=3e-14,atol=1e-16)
-    # P_bar = rk45(sys_dyn.F,sys_dyn.G,P_old, t0,tf)
-    # [T,Phi] = 
-    Phi = Phi[:,:,-1]
-    x_bar = np.dot(Phi,x_hat_old)
-    P_bar = np.dot(Phi,np.dot(P_old,Phi.T))
-    return [x_bar,P_bar]
-
-
-def compute_estimate(T_obs,dyn_sys,X0_bar,P0,R):
-    estimate = np.zeros([len(X0_bar),len(T)])
-    x_hat_old = X0_bar
-    P_old = P0
-    for i in range(len(dyn_sys.T)):
-        [x_bar,P_bar] = time_update(x_hat_old,P_old,dyn_sys.T[i],
-            dyn_sys.T[i+1],dXdt)
-
 

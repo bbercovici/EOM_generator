@@ -3,6 +3,7 @@ import numpy as np
 from IPython.display import display
 from EOMs import EOM_s
 from EOMs import DynamicSystem
+from EKFs import ExtendedKalman
 
 # Numeric values
 m = 1
@@ -47,5 +48,15 @@ cannonball = DynamicSystem(qj,T,U,Qj,consts,controls)
 cannonball.derive_EOM()
 cannonball.lin_dynamics(equilibrium)
 cannonball.true_dyn(t0,tf,X0,dt)
-cannonball.plot_true_states()
+# cannonball.plot_true_states()
+
+
+## EKF Setup
+state_obs = []
+R = np.eye(2)
+X0_bar = X0
+P0 = np.eye(4)
+
+EKF = ExtendedKalman(X0_bar,P0,R,cannonball,state_obs)
+EKF.compute_estimate()
 

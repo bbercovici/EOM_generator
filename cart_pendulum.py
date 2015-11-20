@@ -3,6 +3,7 @@ import numpy as np
 from IPython.display import display
 from EOMs import EOM_s
 from EOMs import DynamicSystem
+from EOMs import ExtendedKalman
 
 # Numeric values
 m1 = 1
@@ -56,5 +57,4 @@ cart_pendulum.derive_EOM()
 cart_pendulum.lin_dynamics(equilibrium)
 cart_pendulum.true_dyn(t0,tf,X0,dt)
 cart_pendulum.plot_true_states()
-
 
