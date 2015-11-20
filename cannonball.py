@@ -1,7 +1,6 @@
 import sympy as sym
 import numpy as np
 from IPython.display import display
-from EOMs import EOM_s
 from EOMs import DynamicSystem
 from EKFs import ExtendedKalman
 

@@ -1,9 +1,8 @@
 import sympy as sym
 import numpy as np
 from IPython.display import display
-from EOMs import EOM_s
 from EOMs import DynamicSystem
-from EOMs import ExtendedKalman
+from EKFs import ExtendedKalman
 
 # Numeric values
 m1 = 1
