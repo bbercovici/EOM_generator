@@ -221,6 +221,24 @@ def X_dot(g_cords,EOM,controls,consts):
     state_rates = sym.lambdify(state_control_time,EOM.subs(consts), modules='numpy')
     return state_rates
 
+
+def dxdt_interface(X,t , dxdt):
+    """
+    Provides an interface between odeint and dxdt
+    Parameters :
+    ------------
+    X : (n-by-1 np array) state
+    t : time
+    dxdt : (function handle) time derivative of the true (n-by-1) state vector
+    Returns:
+    --------
+    (n-by-1 np.array) time derivative of the components of the  state 
+    """
+    xdot = np.array(dxdt(*list(np.append(t,X))))
+    xdot = xdot.reshape([len(xdot),])
+    return xdot
+
+
 def true_dyn(dXdt,t0,tf,X0,dt):
     """
     Propagates the dynamics of the true state forward
@@ -237,19 +255,59 @@ def true_dyn(dXdt,t0,tf,X0,dt):
     T : (k-by-1 np.array) time histories
     X : (n-by-k np.array) state histories
     """
+    T = np.linspace(t0,tf,round(1/dt))
 
-    T = np.linspace(t0,tf,round((tf-t0)/dt))
-    X = np.zeros([len(X0),len(T)])
-    X[:,0] = X0
-    # Non-linear dynamics are propagated forward in time
-    for i in range(len(T)-1):
-        k1 = np.squeeze(dXdt(*list(np.append(T[i],X[:,i]))))
-        k2 = np.squeeze(dXdt(*list(np.append(T[i] + dt/2 , X[:,i] + dt/2 * k1))))
-        k3 = np.squeeze(dXdt(*list(np.append(T[i] + dt/2 , X[:,i]+ dt/2 * k2))))
-        k4 = np.squeeze(dXdt(*list(np.append(T[i] + dt , X[:,i] + dt * k3 ))))
-        X[:, i + 1 ] = X[:, i ] + dt/6. * (k1 + 2 * k2 + 2 * k3 + k4)
+    # X = odeint(dxdt_interface , X0.reshape([len(X0),]), [t0,tf], args = (dXdt,),
+    #     rtol = 3e-14 , atol = 1e-16)
+    X = odeint(dxdt_interface , X0.reshape([len(X0),]), T,
+        args = (dXdt,),rtol = 3e-14 , atol = 1e-16)
 
+    # T = np.linspace(t0,tf,round((tf-t0)/dt))
+    # X = np.zeros([len(X0),len(T)])
+    # X[:,0] = X0
+    # # Non-linear dynamics are propagated forward in time
+    # for i in range(len(T)-1):
+    #     k1 = np.squeeze(dXdt(*list(np.append(T[i],X[:,i]))))
+    #     k2 = np.squeeze(dXdt(*list(np.append(T[i] + dt/2 , X[:,i] + dt/2 * k1))))
+    #     k3 = np.squeeze(dXdt(*list(np.append(T[i] + dt/2 , X[:,i]+ dt/2 * k2))))
+    #     k4 = np.squeeze(dXdt(*list(np.append(T[i] + dt , X[:,i] + dt * k3 ))))
+    #     X[:, i + 1 ] = X[:, i ] + dt/6. * (k1 + 2 * k2 + 2 * k3 + k4)
+    
     return [T,X]
+
+
+
+def state_obs_mat(ns,g_cords,state_obs):
+    """
+    Returns a function handle to the state observation matrix Htilde
+    Parameters :
+    ------------
+    ns : (dictionnary) local symbols
+    g_cords : (list of strings) generalized coordinates
+    state_obs : (list of strings) obsevation equations
+    Returns:
+    --------
+    (function handle) state observation matrix 
+    """
+    state = sym.Matrix(np.zeros(2*len(g_cords)))
+
+    for i in range(len(g_cords)):
+        state[i] = sym.symbols(g_cords[i], real = True)
+        state[i+len(g_cords)] = sym.symbols(g_cords[i] + '_dot', real = True)
+
+    state_obs_s = sym.sympify(state_obs, locals = ns)
+
+    Htilde_s = state_obs_s.jacobian(state)
+
+    t = sym.symbols('t', real = True)
+    state_time[0] = t
+    for i in range(len(g_cords)):
+        state_time[i + 1] = sym.symbols(g_cords[i], real = True)
+        state_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
+    Htilde = sym.lambdify(state_time,Htilde_s, modules='numpy')
+
+    return Htilde
+
 
 def plot_true_states(T,X,g_cords):
     """
@@ -277,23 +335,4 @@ def plot_true_states(T,X,g_cords):
     fig.set_size_inches(18.5, 10.5,forward=True)
     plt.savefig('true_states.pdf', bbox_inches='tight')
 
-def state_obs_mat(ns,g_cords,state_obs):
-    state = sym.Matrix(np.zeros(2*len(g_cords)))
-
-    for i in range(len(g_cords)):
-        state[i] = sym.symbols(g_cords[i], real = True)
-        state[i+len(g_cords)] = sym.symbols(g_cords[i] + '_dot', real = True)
-
-    state_obs_s = sym.sympify(state_obs, locals = ns)
-
-    Htilde_s = state_obs_s.jacobian(state)
-
-    t = sym.symbols('t', real = True)
-    state_time[0] = t
-    for i in range(len(g_cords)):
-        state_time[i + 1] = sym.symbols(g_cords[i], real = True)
-        state_time[i + len(g_cords)+ 1] = sym.symbols(g_cords[i]+'_dot', real = True)
-    Htilde = sym.lambdify(state_time,Htilde_s, modules='numpy')
-
-    return Htilde
 

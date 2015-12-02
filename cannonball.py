@@ -3,17 +3,19 @@ import numpy as np
 from IPython.display import display
 from EOMs import DynamicSystem
 from EKFs import ExtendedKalman
+from CKFs import ClassicalKalman
 
 # Numeric values
 m = 1
 g = 9.81
-consts = {'m': m, 'g': g}
+c = 0.01
+prob_consts = {'m': m, 'g': g, 'c':c}
 
 # Minimum set of generalized coordinates
 qj = ['x','y']
 
 # Generalized non-conservative forces
-Qj = ['0','0']
+Qj = ['- c * x_dot(t)','-c * y_dot(t)']
 
 # Control variables
 controls = []
@@ -35,15 +37,15 @@ U = [U]
 # Initial state
 X0 = np.array([0,0,10,10])
  
-# Time interval
+# Dynamics time interval
 t0 = 0
-tf = 10
+tf = 0.01
 
 # Timestep
-dt = 1
+dt = 0.001
 
 
-cannonball = DynamicSystem(qj,T,U,Qj,consts,controls)
+cannonball = DynamicSystem(qj,T,U,Qj,prob_consts,controls)
 cannonball.derive_EOM()
 cannonball.lin_dynamics(equilibrium)
 cannonball.true_dyn(t0,tf,X0,dt)
@@ -51,11 +53,23 @@ cannonball.true_dyn(t0,tf,X0,dt)
 
 
 ## EKF Setup
-state_obs = []
-R = np.eye(2)
-X0_bar = X0
-P0 = np.eye(4)
+# Observation relations
+xs = 1
+ys = 1
+EKF_consts = {'xs' : xs,'ys' : ys}
 
-EKF = ExtendedKalman(X0_bar,P0,R,cannonball,state_obs)
+obs = 4
+
+P0 = np.diag([1,1,1,1])
+X0_bar = np.random.multivariate_normal(X0, P0)
+
+EKF = ExtendedKalman(X0_bar,P0,cannonball,obs,EKF_consts)
 EKF.compute_estimate()
+EKF.plot_estimate()
+EKF.plot_residuals()
+
+CKF = ClassicalKalman(X0_bar,P0,cannonball,obs,EKF_consts)
+CKF.compute_estimate()
+CKF.plot_estimate()
+CKF.plot_residuals()
 

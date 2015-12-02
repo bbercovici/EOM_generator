@@ -49,7 +49,7 @@ t0 = 0
 tf = 2
 
 # Timestep
-dt = 0.01
+dt = 0.5
 
 cart_pendulum = DynamicSystem(qj,[T1,T2],[U],Qj,consts,controls)
 cart_pendulum.derive_EOM()

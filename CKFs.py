@@ -9,8 +9,8 @@ def identity(t,*args):
 def time_state(t,X):
     return [t] + list(X)
 
-class ExtendedKalman:
-    """Defines the ExtendedKalman Class"""
+class ClassicalKalman:
+    """Defines the ClassicalKalman Class"""
     def __init__(self, X0,P0,dyn_sys,obs,consts):
         self.X0 = X0
         self.P0 = P0
@@ -21,9 +21,9 @@ class ExtendedKalman:
         range_m = ['((x(t)-xs)**2 + (y(t)-ys)**2)**(0.5)']
 
         if(obs == 2):
-            self.R =  np.diag([0.01**2,0.001**2])
+            self.R =  np.diag([1**2,0.1**2])
         elif obs == 4 :
-            self.R = np.diag([0.01**2,0.01**2,0.001**2,0.001**2])
+            self.R = np.diag([1**2,1**2,0.1**2,0.1**2])
         else :
             raise ValueError('obs == 2 or 4')
 
@@ -106,7 +106,7 @@ def compute_estimate(G,Htilde,T_obs,T,X_hat0,P0,Rcov,dyn_sys):
     X_hat[:,0] = X_hat0
     x_hat[:,0] = np.zeros(X_hat0.shape)
     P_hat[:,:,0] = P0
-    
+
     # Main filter loop
     for i in range(len(dyn_sys.T)-1):
         X_Phi_0 = np.concatenate([X_hat[:,i],np.eye(len(X_hat0)).reshape([len(X_hat0)**2,])])
@@ -118,6 +118,7 @@ def compute_estimate(G,Htilde,T_obs,T,X_hat0,P0,Rcov,dyn_sys):
         # Measurement update
         [x_hat_i,X_hat_i,P_hat_i,Y_i,y_i] = measurement_update(T[i + 1],x_bar,X_bar,
             P_bar,Htilde,Rcov,G,dyn_sys.X.T[:,i + 1])
+
 
         x_hat[:,i + 1 ] = x_hat_i
         X_hat[:,i + 1] = X_hat_i
@@ -160,6 +161,7 @@ def time_update(X_hat_old,x_hat_old,P_old,t_old,t_next,dyn_sys):
     Phi = X_Phi.T[ n : n * (n + 1) , - 1 ].reshape(np.eye(n).shape)
     x_bar = np.dot(Phi,x_hat_old)
     X_bar = X_Phi.T[0 : n, -1 ]
+    
     P_bar = np.dot(Phi,np.dot(P_old,Phi.T)) + 0.000001 * np.eye(Phi.shape[0])
     return [x_bar,X_bar,P_bar]
 
@@ -188,29 +190,29 @@ def measurement_update(t,x_bar,X_bar,P_bar,Htilde,Rcov,G,X_true):
 
     # State-observation matrix
     Hm = Htilde(*time_state(t,X_bar))
-    
+
     # Observation noise
     epsilon = np.random.multivariate_normal(np.zeros(Rcov.shape[0]), Rcov)
-    
+
     # Observation
     Y = G(*time_state(t,X_true)) + np.array([epsilon]).T
 
     # Prefit residuals
     y =  Y - G(*time_state(t,X_bar))
-    
+   
     # Kalman Gain
     K1 = np.dot(P_bar,Hm.T)
     K2 = np.linalg.inv(np.dot(Hm,np.dot(P_bar,Hm.T)) + Rcov)
     K = np.dot(K1,K2)
 
+   
     # Estimates update
     x_hat = x_bar + np.dot(K, y - 
         np.dot(Hm,x_bar.reshape(Hm.shape[1],1))).reshape(x_bar.shape)
-    X_hat = X_bar + x_hat
-
+    X_hat = X_bar 
     P_hat = np.dot(np.eye(len(X_hat)) - np.dot(K,Hm),P_bar)
-    P_hat = np.dot(P_hat,(np.eye(len(X_hat)) - np.dot(K,Hm)).T) + np.dot(K,np.dot(Rcov,K.T))
-    
+    # P_hat = np.dot(P_hat,(np.eye(len(X_hat)) - np.dot(K,Hm)).T) + np.dot(K,np.dot(Rcov,K.T))
+
     return [x_hat,X_hat,P_hat,Y,y]
 
 def state_obs_funs(g_cords,state_obs_eq):
@@ -235,9 +237,10 @@ def state_obs_funs(g_cords,state_obs_eq):
         state[i+len(g_cords)] = sym.symbols(g_cords[i] + '_dot', real = True)(t)
     for i in range(len(state)):
         time_state[i+1] = state[i]
-    
+
 
     Htilde_s = state_obs_eq.jacobian(state)
+  
     
     Htilde = sym.lambdify(time_state,Htilde_s, modules = 'numpy')
     G = sym.lambdify(time_state,state_obs_eq, modules = 'numpy')
@@ -276,30 +279,30 @@ def dxdt_interface(X,t , dxdt, Amat, u = lambda x: 0*x):
     return Xdot
 
 
-def plot_residuals(EKF):
+def plot_residuals(CKF):
     '''
     Plots the prefit and post-fit residuals
     Parameters:
     -----------
-    EKF: (instance of ExtendedKalman)
+    CKF: (instance of ExtendedKalman)
     '''
     plt.clf()
-    Rcov = EKF.R
-    g_cords = EKF.dyn_sys.g_cords
-    X = EKF.dyn_sys.X
-    T = EKF.dyn_sys.T
-    Y = EKF.estimate['Y']
-    y = EKF.estimate['y']
-    x_hat = EKF.estimate['x_hat']
-    X_hat = EKF.estimate['X_hat']
-    P_hat = EKF.estimate['P_hat']
+    Rcov = CKF.R
+    g_cords = CKF.dyn_sys.g_cords
+    X = CKF.dyn_sys.X
+    T = CKF.dyn_sys.T
+    Y = CKF.estimate['Y']
+    y = CKF.estimate['y']
+    x_hat = CKF.estimate['x_hat']
+    X_hat = CKF.estimate['X_hat']
+    P_hat = CKF.estimate['P_hat']
 
-    post_fit_res = np.zeros([EKF.N_obs,len(T)])
+    post_fit_res = np.zeros([CKF.N_obs,len(T)])
  
     for i in range(len(T)):
-        post_fit_res[:,i] = y[:,i] - np.dot(EKF.Htilde(*time_state(T[i],x_hat[:,i])),x_hat[:,i])
+        post_fit_res[:,i] = y[:,i] - np.dot(CKF.Htilde(*time_state(T[i],x_hat[:,i])),x_hat[:,i])
 
-    for i in range(EKF.N_obs):
+    for i in range(CKF.N_obs):
         plt.plot(T, y[i,:]/np.sqrt(Rcov[i,i]),'.')
        
         plt.ticklabel_format(useOffset=False)
@@ -309,11 +312,11 @@ def plot_residuals(EKF):
     plt.suptitle('Prefit residuals ratios')
     fig = plt.gcf()
     fig.set_size_inches(18.5, 10.5,forward=True)
-    plt.savefig('prefit_residuals_ekf.pdf', bbox_inches='tight')
+    plt.savefig('prefit_residuals_ckf.pdf', bbox_inches='tight')
 
 
     plt.clf()
-    for i in range(EKF.N_obs):
+    for i in range(CKF.N_obs):
       
         plt.plot(T, post_fit_res[i,:]/np.sqrt(Rcov[i,i]),'.')
        
@@ -324,7 +327,7 @@ def plot_residuals(EKF):
     plt.suptitle('Post-fit residuals ratios')
     fig = plt.gcf()
     fig.set_size_inches(18.5, 10.5,forward=True)
-    plt.savefig('post_fit_residuals_ekf.pdf', bbox_inches='tight')
+    plt.savefig('post_fit_residuals_ckf.pdf', bbox_inches='tight')
 
     plt.clf()
     for i in range(len(g_cords)):
@@ -332,7 +335,7 @@ def plot_residuals(EKF):
 
         plt.plot(T, np.sqrt(P_hat[i,i]),'b--')
         plt.plot(T, -np.sqrt(P_hat[i,i]),'b--')
-        plt.plot(T, EKF.dyn_sys.X.T[i,:] - X_hat[i,:],color = 'b')
+        plt.plot(T, CKF.dyn_sys.X.T[i,:]-(X_hat[i,:] + x_hat[i,:]),color = 'b')
 
 
         plt.title('$' + g_cords[i]+ '$')
@@ -342,8 +345,9 @@ def plot_residuals(EKF):
         plt.subplot(2*len(g_cords), 1, i+len(g_cords)+1)
         plt.plot(T, np.sqrt(P_hat[i+len(g_cords),i+len(g_cords)]),'b--')
         plt.plot(T, -np.sqrt(P_hat[i+len(g_cords),i+len(g_cords)]),'b--')
-        plt.plot(T,EKF.dyn_sys.X.T[i+len(g_cords),:] - 
-            X_hat[i+len(g_cords),:],color = 'b')
+        plt.plot(T, CKF.dyn_sys.X.T[i + len(g_cords),:] - 
+            (X_hat[i + len(g_cords),:] + x_hat[i + len(g_cords),:]),color = 'b')
+        
 
         plt.ticklabel_format(useOffset=False)
         plt.title('$\dot{'+ g_cords[i] + "}$")
@@ -354,30 +358,31 @@ def plot_residuals(EKF):
     plt.suptitle('Covariance envellope')
     fig = plt.gcf()
     fig.set_size_inches(18.5, 10.5,forward=True)
-    plt.savefig('state_estimate_covar_ekf.pdf', bbox_inches='tight')
+    plt.savefig('state_estimate_covar_ckf.pdf', bbox_inches='tight')
 
 
 
-def plot_estimate(EKF):
+def plot_estimate(CKF):
     """
     Plots the estimated and true states' history
     Parameters:
     -----------
-    EKF: (instance of ExtendedKalman) 
+    CKF: (instance of ClassicalKalman) 
     """
     plt.clf()
 
-    g_cords = EKF.dyn_sys.g_cords
-    X = EKF.dyn_sys.X
-    T = EKF.dyn_sys.T
-    X_hat = EKF.estimate['X_hat']
-   
+    g_cords = CKF.dyn_sys.g_cords
+    X = CKF.dyn_sys.X
+    T = CKF.dyn_sys.T
+    X_hat = CKF.estimate['X_hat']
+    x_hat = CKF.estimate['x_hat']
+
 
     for i in range(len(g_cords)):
         plt.subplot(2*len(g_cords), 1, i+1)
 
         plt.plot(T, X.T[i,:],label = "True")
-        plt.plot(T, X_hat[i,:],label = "Estimated")
+        plt.plot(T, X_hat[i,:] + x_hat[i,: ],label = "Estimated")
 
         plt.ticklabel_format(useOffset=False)
         plt.title('$' + g_cords[i] + '$')
@@ -386,7 +391,7 @@ def plot_estimate(EKF):
         plt.subplot(2 * len(g_cords), 1, i + len(g_cords) + 1)
 
         plt.plot(T, X.T[i + len(g_cords),:],label = "True")
-        plt.plot(T, X_hat[i + len(g_cords),:],label = "Estimated")
+        plt.plot(T, X_hat[i + len(g_cords),:] + x_hat[i + len(g_cords),: ],label = "Estimated")
 
         plt.ticklabel_format(useOffset=False)
         plt.title('$\dot{'+ g_cords[i] + "}$")
@@ -396,4 +401,4 @@ def plot_estimate(EKF):
     plt.xlabel('Time (s)')
     fig = plt.gcf()
     fig.set_size_inches(18.5, 10.5,forward=True)
-    plt.savefig('true_vs_estimated_states_ekf.pdf', bbox_inches='tight')
+    plt.savefig('true_vs_estimated_states_ckf.pdf', bbox_inches='tight')
